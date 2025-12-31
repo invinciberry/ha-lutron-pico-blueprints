@@ -1,0 +1,479 @@
+blueprint:
+  name: Lutron Caseta Four Button Scene Pico Actions (Press / Hold / Double)
+  description: >
+    Short, long, double press automations for Pico four button scene remotes (PJ2-4B-GXX-X31).
+    Release actions will always fire.
+
+    Behavior:
+    - If hold actions are defined: long press fires after hold timeout and STOPS (will not also fire single/double).
+    - If double actions are defined: short press is evaluated on release, then waits briefly for
+      a second press to decide single vs double.
+    - If neither hold nor double actions are defined: short press fires immediately on press.
+  domain: automation
+
+  input:
+    pico_remote:
+      name: Pico Four-Button Scene Remote
+      selector:
+        device:
+          model: PJ2-4B-GXX-X31 (Pico4ButtonScene)
+          multiple: true
+
+    # --- Button 1 (Scene One) ---
+    button_0_press:
+      name: Scene One Button - Short press
+      default: []
+      selector:
+        action: {}
+    button_0_hold:
+      name: Scene One Button - Long press
+      default: []
+      selector:
+        action: {}
+    button_0_double:
+      name: Scene One Button - Double press
+      default: []
+      selector:
+        action: {}
+    button_0_release:
+      name: Scene One Button - Release
+      default: []
+      selector:
+        action: {}
+
+    # --- Button 2 (Scene Two) ---
+    button_1_press:
+      name: Scene Two Button - Short press
+      default: []
+      selector:
+        action: {}
+    button_1_hold:
+      name: Scene Two Button - Long press
+      default: []
+      selector:
+        action: {}
+    button_1_double:
+      name: Scene Two Button - Double press
+      default: []
+      selector:
+        action: {}
+    button_1_release:
+      name: Scene Two Button - Release
+      default: []
+      selector:
+        action: {}
+
+    # --- Button 3 (Scene Three) ---
+    button_2_press:
+      name: Scene Three Button - Short press
+      default: []
+      selector:
+        action: {}
+    button_2_hold:
+      name: Scene Three Button - Long press
+      default: []
+      selector:
+        action: {}
+    button_2_double:
+      name: Scene Three Button - Double press
+      default: []
+      selector:
+        action: {}
+    button_2_release:
+      name: Scene Three Button - Release
+      default: []
+      selector:
+        action: {}
+
+    # --- Button 4 (Off) ---
+    button_3_press:
+      name: Off Button - Short press
+      default: []
+      selector:
+        action: {}
+    button_3_hold:
+      name: Off Button - Long press
+      default: []
+      selector:
+        action: {}
+    button_3_double:
+      name: Off Button - Double press
+      default: []
+      selector:
+        action: {}
+    button_3_release:
+      name: Off Button - Release
+      default: []
+      selector:
+        action: {}
+
+    time_before_long_press:
+      name: Time before long press
+      description: Amount of time button needs to be held before triggering "long press" action.
+      default: 1
+      selector:
+        number:
+          min: 0.25
+          max: 10.0
+          step: 0.25
+          unit_of_measurement: seconds
+          mode: slider
+
+    time_before_double_press:
+      name: Time before double press
+      description: Max time between first release and second press to count as a double press.
+      default: 0.25
+      selector:
+        number:
+          min: 0.10
+          max: 1.00
+          step: 0.05
+          unit_of_measurement: seconds
+          mode: slider
+
+    auto_mode:
+      name: Automation Mode
+      description: >
+        Mode that automation runs in (single, restart, queued, parallel).
+        Recommended: single or restart if you use double-press.
+      default: single
+      selector:
+        select:
+          options:
+            - single
+            - restart
+            - queued
+            - parallel
+          multiple: false
+          custom_value: false
+
+    mode_max:
+      name: Mode Max (ignored by Single and Restart Modes)
+      description: Maximum number of runs that can be executed or queued at a time.
+      default: 10
+      selector:
+        number:
+          min: 1.0
+          max: 15.0
+          step: 1.0
+          mode: slider
+
+trigger:
+  - platform: event
+    event_type: lutron_caseta_button_event
+    event_data:
+      type: Pico4ButtonScene
+
+variables:
+  button_numbers: [8, 9, 10, 11]
+  device_ids: !input pico_remote
+
+  button_0_hold_actions: !input button_0_hold
+  button_1_hold_actions: !input button_1_hold
+  button_2_hold_actions: !input button_2_hold
+  button_3_hold_actions: !input button_3_hold
+
+  button_0_double_actions: !input button_0_double
+  button_1_double_actions: !input button_1_double
+  button_2_double_actions: !input button_2_double
+  button_3_double_actions: !input button_3_double
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.event.data.device_id in device_ids }}"
+
+action:
+  - choose:
+      # -------------------------
+      # RELEASE ACTIONS (always fire)
+      # -------------------------
+      - conditions: '{{ trigger.event.data.action == "release" }}'
+        sequence:
+          - choose:
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[0] }}"
+                sequence: !input button_0_release
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[1] }}"
+                sequence: !input button_1_release
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[2] }}"
+                sequence: !input button_2_release
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[3] }}"
+                sequence: !input button_3_release
+
+      # -------------------------
+      # PRESS ACTIONS
+      # -------------------------
+      - conditions: '{{ trigger.event.data.action == "press" }}'
+        sequence:
+          - choose:
+              # ===== Button 0 =====
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[0] }}"
+                sequence:
+                  # If neither hold nor double exists, fire immediately (original behavior)
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ button_0_hold_actions == [] and button_0_double_actions == [] }}"
+                        sequence: !input button_0_press
+                    default:
+                      # 1) Hold detection (if configured)
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_0_hold_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: release
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_long_press
+                              - choose:
+                                  # If we timed out (no release), it's a HOLD. Run hold and STOP.
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ not wait.trigger }}"
+                                    sequence:
+                                      - sequence: !input button_0_hold
+                                      - stop: "Long press handled (button 0)"
+                                default: []
+                        default:
+                          # No hold configured; wait for release so we can do double-press
+                          - wait_for_trigger:
+                              - platform: event
+                                event_type: lutron_caseta_button_event
+                                event_data:
+                                  type: Pico4ButtonScene
+                                  button_number: "{{ trigger.event.data.button_number }}"
+                                  action: release
+                                  device_id: "{{ trigger.event.data.device_id }}"
+                            timeout:
+                              seconds: 10
+
+                      # 2) If not held: double-press detection if configured
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_0_double_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: press
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_double_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ wait.trigger != none }}"
+                                    sequence: !input button_0_double
+                                default: !input button_0_press
+                        default: !input button_0_press
+
+              # ===== Button 1 =====
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[1] }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ button_1_hold_actions == [] and button_1_double_actions == [] }}"
+                        sequence: !input button_1_press
+                    default:
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_1_hold_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: release
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_long_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ not wait.trigger }}"
+                                    sequence:
+                                      - sequence: !input button_1_hold
+                                      - stop: "Long press handled (button 1)"
+                                default: []
+                        default:
+                          - wait_for_trigger:
+                              - platform: event
+                                event_type: lutron_caseta_button_event
+                                event_data:
+                                  type: Pico4ButtonScene
+                                  button_number: "{{ trigger.event.data.button_number }}"
+                                  action: release
+                                  device_id: "{{ trigger.event.data.device_id }}"
+                            timeout:
+                              seconds: 10
+
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_1_double_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: press
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_double_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ wait.trigger != none }}"
+                                    sequence: !input button_1_double
+                                default: !input button_1_press
+                        default: !input button_1_press
+
+              # ===== Button 2 =====
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[2] }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ button_2_hold_actions == [] and button_2_double_actions == [] }}"
+                        sequence: !input button_2_press
+                    default:
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_2_hold_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: release
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_long_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ not wait.trigger }}"
+                                    sequence:
+                                      - sequence: !input button_2_hold
+                                      - stop: "Long press handled (button 2)"
+                                default: []
+                        default:
+                          - wait_for_trigger:
+                              - platform: event
+                                event_type: lutron_caseta_button_event
+                                event_data:
+                                  type: Pico4ButtonScene
+                                  button_number: "{{ trigger.event.data.button_number }}"
+                                  action: release
+                                  device_id: "{{ trigger.event.data.device_id }}"
+                            timeout:
+                              seconds: 10
+
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_2_double_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: press
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_double_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ wait.trigger != none }}"
+                                    sequence: !input button_2_double
+                                default: !input button_2_press
+                        default: !input button_2_press
+
+              # ===== Button 3 =====
+              - conditions: "{{ trigger.event.data.button_number == button_numbers[3] }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ button_3_hold_actions == [] and button_3_double_actions == [] }}"
+                        sequence: !input button_3_press
+                    default:
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_3_hold_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: release
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_long_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ not wait.trigger }}"
+                                    sequence:
+                                      - sequence: !input button_3_hold
+                                      - stop: "Long press handled (button 3)"
+                                default: []
+                        default:
+                          - wait_for_trigger:
+                              - platform: event
+                                event_type: lutron_caseta_button_event
+                                event_data:
+                                  type: Pico4ButtonScene
+                                  button_number: "{{ trigger.event.data.button_number }}"
+                                  action: release
+                                  device_id: "{{ trigger.event.data.device_id }}"
+                            timeout:
+                              seconds: 10
+
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ button_3_double_actions != [] }}"
+                            sequence:
+                              - wait_for_trigger:
+                                  - platform: event
+                                    event_type: lutron_caseta_button_event
+                                    event_data:
+                                      type: Pico4ButtonScene
+                                      button_number: "{{ trigger.event.data.button_number }}"
+                                      action: press
+                                      device_id: "{{ trigger.event.data.device_id }}"
+                                timeout: !input time_before_double_press
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ wait.trigger != none }}"
+                                    sequence: !input button_3_double
+                                default: !input button_3_press
+                        default: !input button_3_press
+
+    default: []
+
+mode: !input auto_mode
+max: !input mode_max
+
+trace:
+  stored_traces: 10
